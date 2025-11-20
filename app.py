@@ -1,5 +1,6 @@
 import os
 import base64
+import requests
 from dotenv import load_dotenv
 from io import BytesIO
 from flask import Flask, request, jsonify, send_file
@@ -14,20 +15,35 @@ app = Flask(__name__)
 @app.route("/estilizar", methods=["POST"])
 def estilizar_imagem():
 
-    if "image" not in request.files:
-        return jsonify({"error": "Campo 'image' é obrigatório (arquivo)."}), 400
+    # Verifica se foi enviado arquivo OU url
+    image_file = request.files.get("image")
+    image_url = request.form.get("image_url") or (request.json and request.json.get("image_url"))
 
-    image_file = request.files["image"]
-    prompt = request.form.get("prompt", "").strip()
+    if not image_file and not image_url:
+        return jsonify({"error": "É obrigatório enviar 'image' (arquivo) ou 'image_url' (link)."}), 400
 
+    prompt = request.form.get("prompt") or (request.json and request.json.get("prompt"))
+    
     if not prompt:
-        return jsonify({"error": "Campo 'prompt' é obrigatório (texto)."}), 400
+         return jsonify({"error": "Campo 'prompt' é obrigatório (texto)."}), 400
+    
+    prompt = prompt.strip()
 
     try:
+        image_data = None
+        
+        if image_file:
+             image_data = image_file.read()
+        elif image_url:
+            # Baixar a imagem da URL
+            resp = requests.get(image_url)
+            resp.raise_for_status()
+            image_data = resp.content
+
         # 🔥 CONVERSÃO ESSENCIAL
         # O SDK NÃO ACEITA FileStorage direto!
         # Formato correto: tuple (nome, stream ou bytes)
-        uploaded_image = ("input.png", image_file.stream)
+        uploaded_image = ("input.png", image_data)
 
         result = client.images.edit(
             model="gpt-image-1",
