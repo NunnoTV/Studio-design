@@ -6,6 +6,7 @@ from io import BytesIO
 from flask import Flask, request, jsonify, send_file
 from openai import OpenAI
 
+
 load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -47,7 +48,7 @@ def estilizar_imagem():
 
         result = client.images.edit(
             model="gpt-image-1",
-            image=uploaded_image,   # AGORA SIM!
+            image=uploaded_image, 
             prompt=prompt,
             size="1024x1024",
             n=1
