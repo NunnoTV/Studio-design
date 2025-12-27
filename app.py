@@ -1,9 +1,11 @@
 import os
 import base64
+import uuid
+
 import requests
 from dotenv import load_dotenv
-from io import BytesIO
-from flask import Flask, request, jsonify, send_file
+
+from flask import Flask, request, jsonify, url_for
 from openai import OpenAI
 
 
@@ -53,15 +55,35 @@ def estilizar_imagem():
             size="1024x1024",
             n=1
         )
+        
+        print(f"DEBUG RESPONSE: {result}") # Log para debug no terminal
 
-        image_base64 = result.data[0].b64_json
-        image_bytes = base64.b64decode(image_base64)
+        # Verifica se veio URL ou B64 (alguns proxies podem mandar b64 sem pedir)
+        image_data_out = None
+        
+        if hasattr(result.data[0], 'url') and result.data[0].url:
+            # Baixar a imagem gerada da URL remota
+            response_img = requests.get(result.data[0].url)
+            if response_img.status_code == 200:
+                image_data_out = response_img.content
+        elif hasattr(result.data[0], 'b64_json') and result.data[0].b64_json:
+             image_data_out = base64.b64decode(result.data[0].b64_json)
+        
+        if not image_data_out:
+             return jsonify({"error": "A API não retornou URL nem Base64 da imagem.", "debug": str(result)}), 500
 
-        return send_file(
-            BytesIO(image_bytes),
-            mimetype="image/png",
-            download_name="imagem_estilizada.png"
-        )
+        # Gerar nome único para o arquivo
+        filename = f"generated_{uuid.uuid4().hex}.png"
+        filepath = os.path.join("static", filename)
+
+        # Salvar a imagem
+        with open(filepath, "wb") as f:
+            f.write(image_data_out)
+
+        # Gerar URL temporária local
+        image_url = url_for('static', filename=filename, _external=True)
+
+        return jsonify({"url": image_url})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
