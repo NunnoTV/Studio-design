@@ -5,7 +5,7 @@ import uuid
 import requests
 from dotenv import load_dotenv
 
-from flask import Flask, request, jsonify, url_for
+from flask import Flask, request, jsonify, url_for, send_from_directory
 from openai import OpenAI
 
 
@@ -14,6 +14,12 @@ load_dotenv()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = Flask(__name__)
+
+@app.route('/temp_image/<filename>')
+def serve_temp_image(filename):
+    # Rota para servir imagens salvas no diretório temporário (necessário para Vercel/Serverless)
+    import tempfile
+    return send_from_directory(tempfile.gettempdir(), filename)
 
 @app.route("/estilizar", methods=["POST"])
 def estilizar_imagem():
@@ -74,14 +80,18 @@ def estilizar_imagem():
 
         # Gerar nome único para o arquivo
         filename = f"generated_{uuid.uuid4().hex}.png"
-        filepath = os.path.join("static", filename)
+        
+        # Usar diretório temporário do sistema (compatível com Vercel/Read-only FS)
+        import tempfile
+        temp_dir = tempfile.gettempdir()
+        filepath = os.path.join(temp_dir, filename)
 
         # Salvar a imagem
         with open(filepath, "wb") as f:
             f.write(image_data_out)
 
-        # Gerar URL temporária local
-        image_url = url_for('static', filename=filename, _external=True)
+        # Gerar URL temporária local apontando para a nova rota
+        image_url = url_for('serve_temp_image', filename=filename, _external=True)
 
         return jsonify({"url": image_url})
 
